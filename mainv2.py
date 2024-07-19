@@ -6,104 +6,213 @@ import openpyxl
 from copy import copy
 from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.utils import get_column_letter, column_index_from_string
+import logging
+import subprocess
+
+# ===========================
+# = Manejo del archivo conf =
+# ===========================
+
+def leer_conf(ruta_completa):
+    config = configparser.ConfigParser()
+    
+    try:
+        archivos_leidos = config.read(ruta_completa)
+        if not archivos_leidos:
+            raise FileNotFoundError(f"El archivo {ruta_completa} no se pudo leer.")
+        
+        if 'Marcado' not in config:
+            raise configparser.NoSectionError('Marcado')
+        
+        if 'asunto' in config['Marcado']:
+            asunto = config.get('Marcado', 'asunto')
+            asunto_lista = asunto.split(',')
+            return asunto_lista, None  
+
+        elif 'fecha' in config['Marcado'] and 'marcado' in config['Marcado']:
+            fecha = config.get('Marcado', 'fecha')
+            marcado = config.get('Marcado', 'marcado')
+            marcado_lista = marcado.split(",")
+            return marcado_lista, fecha 
+        
+    except configparser.NoSectionError as e:
+        print(f"Error: La sección no existe en el archivo de configuración: {e}")
+        return None, None  
+    except configparser.NoOptionError as e:
+        print(f"Error: La opción no existe en la sección especificada: {e}")
+        return None, None  
+    except FileNotFoundError as e:
+        print(f"Error al leer el archivo: {e}")
+        return None, None  
+    except Exception as e:
+        print(f"Error inesperado en leer_conf: {e}")
+        return None, None 
+
+# ===========================
+# = Manejo del archivo jar =
+# ===========================
+
+def ejecucionJava(ruta_actual, ruta_java):
+    """
+    Ejecuta un archivo JAR de Java pasando parámetros específicos y maneja la salida y errores del proceso.
+
+    :param ruta_actual: Ruta del directorio actual donde se encuentra el archivo de configuración.
+    :param ruta_java: Ruta completa del archivo JAR de Java a ejecutar.
+    """
+    try:
+        f_alt, m_alt = cargarAltex(ruta_actual)
+        
+        execution_process = subprocess.Popen(['java', '-jar', ruta_java, f_alt] + m_alt, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        execution_output, execution_errors = execution_process.communicate()
+        
+        if execution_errors:
+            logging.error(f"Error de ejecución Java: {execution_errors.decode('utf-8')}")
+            return
+        
+        logging.info(execution_output.decode('utf-8'))
+        
+    except Exception as e:
+        logging.error(f"Error de ejecución: {e}")
+
+def cargarAltex(ruta_actual):
+    """
+    Carga la configuración desde un archivo específico y retorna los valores necesarios para la ejecución de Java.
+
+    :param ruta_actual: Ruta del directorio actual donde se encuentra el archivo de configuración.
+    :return: Una tupla que contiene la fecha y los marcados obtenidos del archivo de configuración.
+    """
+    try:
+        configAltex = configparser.ConfigParser()
+        configAltex_ruta = os.path.join(ruta_actual, 'Marcado_altex.lobo')
+        if not configAltex.read(configAltex_ruta):
+            raise FileNotFoundError(f"No se pudo encontrar o leer el archivo de configuración: {configAltex_ruta}")
+        
+        fecha_altex = configAltex.get('Marcado', 'fecha')
+        marcado_altex = configAltex.get('Marcado', 'marcado').split(",")
+        
+        return fecha_altex, marcado_altex
+    except Exception as e:
+        logging.error(f"Error al cargar configuración Altex: {e}")
+        raise
 
 # ===========================
 # = Manejo de Filas Excel =
 # ===========================
 
 def insertar_fila(sheet, now):
+    """
+    Inserta una nueva fila en la posición 8 de la hoja de Excel y copia el estilo de la fila siguiente.
+    Además, establece la fecha actual en la primera celda de la nueva fila.
+
+    :param sheet: La hoja de Excel donde se insertará la fila.
+    :param now: Objeto datetime con la fecha actual.
+    """
     try:
         sheet.insert_rows(8)
         for col in range(1, sheet.max_column + 1):
-            column_letter = get_column_letter(col)
-            
-            celda_vieja = sheet[column_letter + '9']
-            celda_nueva = sheet[column_letter + '8']
+            celda_vieja = sheet.cell(row=9, column=col)
+            celda_nueva = sheet.cell(row=8, column=col)
 
             celda_nueva.font = copy(celda_vieja.font)
             celda_nueva.fill = copy(celda_vieja.fill)
             celda_nueva.alignment = copy(celda_vieja.alignment)
 
-        now = datetime.strftime(now, "%d/%m/%Y")
-        sheet.cell(row=8, column=1).value = now
+        fecha_formateada = datetime.strftime(now, "%d/%m/%Y")
+        sheet.cell(row=8, column=1).value = fecha_formateada
 
     except InvalidFileException as e:
-        print(f"Error al trabajar con el archivo de Excel: {e}")
+        logging.error(f"Error al trabajar con el archivo de Excel: {e}")
     except Exception as e:
-        print(f"Ocurrió un error inesperado: {e}")
+        logging.error(f"Ocurrió un error inesperado: {e}")
 
-def copiar_fila(origen_row, origen_col, detino_row, detino_col, sh):
+def copiar_fila(origen_row, origen_col, destino_row, destino_col, sh):
+    """
+    :param origen_row: La fila de la celda origen.
+    :param origen_col: La columna de la celda origen.
+    :param destino_row: La fila de la celda destino.
+    :param destino_col: La columna de la celda destino.
+    :param sh: La hoja de Excel donde se encuentran las celdas.
+    """
     celda_origen = sh.cell(row=origen_row, column=origen_col)
-    celda_destino = sh.cell(row=detino_row, column=detino_col)
+    celda_destino = sh.cell(row=destino_row, column=destino_col)
 
     celda_destino.font = copy(celda_origen.font)
     celda_destino.fill = copy(celda_origen.fill)
     celda_destino.alignment = copy(celda_origen.alignment)
 
 def crear_archivo_excel_si_no_existe(carpeta_excel, ruta_excel_base, now):
+    """
+    :param carpeta_excel: Ruta de la carpeta donde se creará el archivo Excel.
+    :param ruta_excel_base: Ruta del archivo Excel base que se copiará.
+    :param now: Objeto datetime que representa el momento actual.
+    :return: Ruta del archivo Excel creado o existente.
+    """
     try:
         archivo_excel_year = os.path.join(carpeta_excel, f"Bitacora_de_respaldos_BD_{now.year}.xlsx")
 
         if not os.path.exists(archivo_excel_year):
-            print(f"Creando archivo excel en la ruta: {carpeta_excel}")
+            logging.info(f"Creando archivo excel en la ruta: {carpeta_excel}")
             shutil.copy2(ruta_excel_base, archivo_excel_year)
         else:
-            print(f"El archivo excel ya existe en la ruta: {archivo_excel_year}")
-    except Exception as e:
-        print(f"Error inesperado de la excepcion (129): {e}")
+            logging.info(f"El archivo excel ya existe en la ruta: {archivo_excel_year}")
+    except (FileNotFoundError, PermissionError) as e:
+        logging.error(f"Error al crear o verificar el archivo Excel: {e}")
+        return None
     return archivo_excel_year
 
 # ================================
 # = Llenado de bitacora en excel =
 # ================================
 
-def comprobar_bakcup_realizado_sial(now, esquemas, ruta_base, letras, sheet):
-    for i, esquema in enumerate(esquemas): 
-        ruta_folder = os.path.join(ruta_base, esquema)
-        if os.path.exists(ruta_folder):
-            archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"
-            ruta_archivo = os.path.join(ruta_folder, archivo)
-            if os.path.exists(ruta_archivo):
-                sheet.cell(row=8, column=column_index_from_string(letras[i])).value = "X"
-                print(f"El backup del esquema {esquema} se realizó correctamente")
+def comprobar_backup(now, esquemas, ruta_base, letras, sheet):
+    """
+    Comprueba la existencia de backups para una lista de esquemas y marca en una hoja de Excel si se encuentran.
 
-def if_statement_in_backup_notSial(ruta_folder, idx, esquema, now, sheet, letras):
+    :param now: Objeto datetime con la fecha actual.
+    :param esquemas: Lista de nombres de esquemas a comprobar.
+    :param ruta_base: Ruta base donde se encuentran los folders de los esquemas.
+    :param letras: Lista de letras de columnas en la hoja de Excel para marcar.
+    :param sheet: Objeto de hoja de Excel donde se realizarán las marcas.
+    """
+    try:
+        ruta_folder_mg = os.path.join(ruta_base, 'Mongo')
+        
+        for i, esquema in enumerate(esquemas):
+            ruta_folder = os.path.join(ruta_base, esquema)
+
+            if esquema in {'SIAL_HDE', 'SialCFDI', 'CAMPOBDB'} and os.path.exists(ruta_folder_mg):
+                marcado_de_esquemas(ruta_folder_mg, i, esquema, now, sheet, letras)
+            if os.path.exists(ruta_folder):
+                marcado_de_esquemas(ruta_folder, i, esquema, now, sheet, letras)
+    except FileNotFoundError as e:
+        logging.error(f"Archivo o directorio no encontrado: {e}")
+    except Exception as e:
+        logging.error(f"Error inesperado al comprobar backups: {e}")
+
+def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras):
     try:
         lista_mongo = ['SIAL_HDE','SialCFDI','CAMPOBDB']
 
         if esquema == 'SEGUIDORES' or esquema == 'REPCIU_AYTO_ZAMORA':
-            archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"
-            ruta_archivo = os.path.join(ruta_folder, archivo)
-            if os.path.exists(ruta_archivo):
-                sheet.cell(row=8, column=column_index_from_string(letras[idx])).value = "X"
-                print(f"El backup del esquema {esquema} se realizó correctamente")
-    
-        if esquema == 'ZAM-SV-MORPHO2':
+            archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"            
+        elif esquema == 'ZAM-SV-MORPHO2':
             archivo = f"MorphoManager-{now.strftime('%Y%m%d')}.7z"
-            ruta_archivo = os.path.join(ruta_folder, archivo)
-            if os.path.exists(ruta_archivo):
-                sheet.cell(row=8, column=column_index_from_string(letras[idx])).value = "X"
-                print(f"El backup del esquema {esquema} se realizó correctamente")
-
-        if esquema in lista_mongo:
+        elif esquema in lista_mongo:
             archivo = f"{now.strftime('%Y%m%d')}-{esquema}.7z"
-            ruta_archivo = os.path.join(ruta_folder, archivo)
-            if os.path.exists(ruta_archivo):
-                sheet.cell(row=8, column=column_index_from_string(letras[idx])).value = "X"
-                print(f"El backup del esquema {esquema} se realizó correctamente")
+        else:
+            archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"
 
+        ruta_archivo = os.path.join(ruta_folder, archivo)
+
+        if os.path.exists(ruta_archivo):
+            sheet.cell(row=8, column=column_index_from_string(letras[idx])).value = 'X'
+            # print(f"El backup del esquema {esquema} se realizo correctamente")
+
+            pass
+    except FileNotFoundError as e:
+        logging.error(f"Archivo de backup no encontrado: {e}")
     except Exception as e:
-        print(f"Ocurrió un error inesperado al comprobar el backup del esquema {esquema}: {e}")
-
-def comprobar_backup_realizado_not_sial(now, esquemas, ruta_base, letras, sheet):
-    for i, esquema in enumerate(esquemas):
-        ruta_folder = os.path.join(ruta_base, esquema)
-        ruta_folder_mg = os.path.join(ruta_base, 'Mongo')
-
-        if esquema in {'SIAL_HDE', 'SialCFDI', 'CAMPOBDB'} and os.path.exists(ruta_folder_mg):
-            if_statement_in_backup_notSial(ruta_folder_mg, i, esquema, now, sheet, letras)
-        if os.path.exists(ruta_folder):
-            if_statement_in_backup_notSial(ruta_folder, i, esquema, now, sheet, letras)
+        logging.error(f"Error inesperado al marcar esquemas: {e}")
 
 # ===========================
 # = Manejo del archivo .ini =
@@ -129,10 +238,10 @@ def leer_configuracion(ruta_archivo):
     return esquemas, letras
 
 def actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo):
-    esquema_set = set(esquemas) # conjunto de esquemas para hacer busquedas más eficientes
-    pos_final_num = column_index_from_string(letras[-1]) # número de la última letra en la lista de letras
+    esquema_set = set(esquemas) 
+    pos_final_num = column_index_from_string(letras[-1]) 
 
-    nombres_nuevos, letras_nuevas = [], [] # listas para almacenar los nuevos esquemas y letras
+    nombres_nuevos, letras_nuevas = [], []
     ctr = 1
 
     exclusiones = {'SIAL_PRUEBA', 'LOBORH', 'FREXPORT', 'Mongo'}
@@ -154,9 +263,7 @@ def actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo):
         
     return nombres_nuevos, letras_nuevas
 
-def actualizar_archivo_de_config(ruta_base, esquemas, letras):
-    lista_mongo = ['SIAL_HDE','SialCFDI','CAMPOBDB']
-
+def actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo):
     nombres_nuevos, letras_nuevas = actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo)
 
     if nombres_nuevos or letras_nuevas:
@@ -187,8 +294,7 @@ def actualizar_archivo_de_config(ruta_base, esquemas, letras):
 def main_function(sheet, now, esquemas, ruta_base, letras):
     insertar_fila(sheet, now)
 
-    comprobar_bakcup_realizado_sial(now, esquemas, ruta_base, letras, sheet)
-    comprobar_backup_realizado_not_sial(now, esquemas, ruta_base, letras, sheet)
+    comprobar_backup(now, esquemas, ruta_base, letras, sheet)
     
     # se añaden los nombres de las carpetas a la bitácora
     # esto deberia ir primero y despues checar los backups
@@ -204,21 +310,23 @@ ruta_actual = os.path.dirname(__file__)
 nombre_excel_base = "Bitacora_de_respaldos_BD"
 carpeta_excel = os.path.join(ruta_actual, nombre_excel_base)
 ruta_excel_base = os.path.join(ruta_actual, nombre_excel_base + ".xlsx")
+ruta_java = os.path.join(ruta_actual, "marcarAltex.jar")
+lista_mongo = {'SIAL_HDE','SialCFDI','CAMPOBDB'}
 
-#ruta_base = '/mnt/DMP/'
-ruta_base = r'\\192.0.0.175\respaldos'
+ruta_base = '/mnt/175/'
+#ruta_base = r'\\192.0.0.175\respaldos'
 
 ruta_archivo_config = os.path.join(ruta_actual, "config.ini")
 
 esquemas, letras = leer_configuracion(ruta_archivo_config)
-esquemas, letras = actualizar_archivo_de_config(ruta_base, esquemas, letras)
+esquemas, letras = actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo)
 
 if len(letras) != len(esquemas):
     print('Las listas no tienen la misma cantidad de elementos')
 
 # now = datetime.now().date()
 now = datetime(2024, 6, 18).date() # Fecha de prueba
-fecha_modificacion = datetime(2024, 6, 1).date()
+fecha_modificacion = datetime(2024, 1, 1).date()
 
 os.makedirs(carpeta_excel, exist_ok=True)
 
@@ -229,14 +337,30 @@ sheet = workbook.active
 
 llenar_bitacora = False # Variable para controlar si se debe llenar la bitácora o no
 
-# ______________________________________________________________________________________________________________________
-if llenar_bitacora:
-    while fecha_modificacion < now :
-        main_function(sheet, fecha_modificacion, esquemas, ruta_base, letras)
+file_path_conf = r'/python/Bitacora_BD_v2/configMarcado.conf'
+file_path_lobo = r'/python/Bitacora_BD_v2/Marcado_altex.lobo'
 
-        fecha_modificacion += timedelta(days=1)
-else:
-    main_function(sheet, now, esquemas, ruta_base, letras)
-# ______________________________________________________________________________________________________________________
+asunto, _ = leer_conf(file_path_conf)
+marcado_lista, fecha = leer_conf(file_path_lobo)
+# la fecha dada es de cuando debe de marcar
+
+try:
+    exitoso = True  # Variable de control para verificar si el proceso se completó sin errores
+
+    if llenar_bitacora:
+        while fecha_modificacion < now:
+            ejecucionJava(ruta_actual, ruta_java)
+            main_function(sheet, fecha_modificacion, esquemas, ruta_base, letras)
+            fecha_modificacion += timedelta(days=1)
+    else:
+        ejecucionJava(ruta_actual, ruta_java)
+        main_function(sheet, now, esquemas, ruta_base, letras)
+
+except Exception as e:
+    logging.error(f"Ocurrió un error durante la ejecución: {e}")
+    exitoso = False 
+
+if exitoso:
+    print("El programa ha finalizado exitosamente sin errores.")
 
 workbook.save(archivo_excel_year)
