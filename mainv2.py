@@ -381,6 +381,7 @@ llenar_bitacora = False # Variable para controlar si se debe llenar la bitácora
 
 try:
     exitoso = True  # Variable de control para verificar si el proceso se completó sin errores
+    
     config5 = configparser.ConfigParser()
     config5.read(file_path_conf)
     if llenar_bitacora:
@@ -388,16 +389,22 @@ try:
             ejecucionJava(ruta_actual, ruta_java)
             marcado_lista, _ = leer_conf(file_path_lobo)
             main_function(sheet, fecha_modificacion, esquemas, ruta_base, letras, marcado_lista)
+            fecha_modificacion += timedelta(days=1)
     else:
         # darle formato a la fecha de modificacion 
         fecha_mod = fecha_modificacion.strftime('%d/%m/%Y')
         config5.set('Marcado', 'fecha', fecha_mod)
-        with open(file_path_conf, 'w') as configfile:
-            config5.write(configfile)
+
+
+        # try:
+        #     with open(file_path_conf, 'w') as configfile:
+        #         config5.write(configfile)
+        # except Exception as e:
+        #     print(f"An error occurred: {e}")
 
         ejecucionJava(ruta_actual, ruta_java)
-        # marcado_lista, _ = leer_conf(file_path_lobo)
-        # main_function(sheet, now, esquemas, ruta_base, letras, marcado_lista)
+        marcado_lista, _ = leer_conf(file_path_lobo)
+        main_function(sheet, now, esquemas, ruta_base, letras, marcado_lista)
 
 except Exception as e:
     logging.error(f"Ocurrió un error durante la ejecución: {e}")
