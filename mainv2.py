@@ -18,6 +18,7 @@ def leer_conf(ruta_completa):
     
     try:
         archivos_leidos = config.read(ruta_completa)
+
         if not archivos_leidos:
             raise FileNotFoundError(f"El archivo {ruta_completa} no se pudo leer.")
         
@@ -33,7 +34,18 @@ def leer_conf(ruta_completa):
             fecha = config.get('Marcado', 'fecha')
             marcado = config.get('Marcado', 'marcado')
             marcado_lista = marcado.split(",")
-            return marcado_lista, fecha 
+
+            fecha_actual = datetime.strptime(fecha, '%d/%m/%Y').date()
+
+            nueva_fecha = fecha_actual + timedelta(days=1)
+            nueva_fecha_str = nueva_fecha.strftime('%d/%m/%Y')
+            
+            config.set('Marcado', 'fecha', nueva_fecha_str)
+            
+            with open(ruta_completa, 'w') as configfile:
+                config.write(configfile)
+            # se debe de modificar la fecha del archivo .conf y no la del archivo .lobo
+            return marcado_lista, fecha_actual
         
     except configparser.NoSectionError as e:
         print(f"Error: La sección no existe en el archivo de configuración: {e}")
@@ -61,13 +73,14 @@ def ejecucionJava(ruta_actual, ruta_java):
     """
     try:
         f_alt, m_alt = cargarAltex(ruta_actual)
-        
+
         execution_process = subprocess.Popen(['java', '-jar', ruta_java, f_alt] + m_alt, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
         execution_output, execution_errors = execution_process.communicate()
         
         if execution_errors:
             logging.error(f"Error de ejecución Java: {execution_errors.decode('utf-8')}")
-            return
+            exit(1)
         
         logging.info(execution_output.decode('utf-8'))
         
@@ -89,11 +102,10 @@ def cargarAltex(ruta_actual):
         
         fecha_altex = configAltex.get('Marcado', 'fecha')
         marcado_altex = configAltex.get('Marcado', 'marcado').split(",")
-        
+
         return fecha_altex, marcado_altex
     except Exception as e:
         logging.error(f"Error al cargar configuración Altex: {e}")
-        raise
 
 # ===========================
 # = Manejo de Filas Excel =
@@ -164,7 +176,7 @@ def crear_archivo_excel_si_no_existe(carpeta_excel, ruta_excel_base, now):
 # = Llenado de bitacora en excel =
 # ================================
 
-def comprobar_backup(now, esquemas, ruta_base, letras, sheet):
+def comprobar_backup(now, esquemas, ruta_base, letras, sheet, marcado_lista):
     """
     Comprueba la existencia de backups para una lista de esquemas y marca en una hoja de Excel si se encuentran.
 
@@ -181,18 +193,24 @@ def comprobar_backup(now, esquemas, ruta_base, letras, sheet):
             ruta_folder = os.path.join(ruta_base, esquema)
 
             if esquema in {'SIAL_HDE', 'SialCFDI', 'CAMPOBDB'} and os.path.exists(ruta_folder_mg):
-                marcado_de_esquemas(ruta_folder_mg, i, esquema, now, sheet, letras)
-            if os.path.exists(ruta_folder):
-                marcado_de_esquemas(ruta_folder, i, esquema, now, sheet, letras)
+                marcado_de_esquemas(ruta_folder_mg, i, esquema, now, sheet, letras, None)
+            elif os.path.exists(ruta_folder):
+                marcado_de_esquemas(ruta_folder, i, esquema, now, sheet, letras, None)
+            else:
+                marcado_de_esquemas(ruta_folder, i, esquema, now, sheet, letras, marcado_lista)
+
     except FileNotFoundError as e:
         logging.error(f"Archivo o directorio no encontrado: {e}")
     except Exception as e:
         logging.error(f"Error inesperado al comprobar backups: {e}")
 
-def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras):
+def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras, marcado_lista):
     try:
         lista_mongo = ['SIAL_HDE','SialCFDI','CAMPOBDB']
+        # cambiar para leer directo
 
+        asunto = 'SIAL_ALTEX ,SIAL_ALTEX_FREX ,SIAL_ALTEX_ALXTRA ,SIAL_ALTEX_NEXT ,SIAL_ALTEX_XTRA ,SIALADMIN_ALTEX ,SIALADMIN_ALTEX_ALXTRA ,SIALADMIN_ALTEX_FREX ,SIALADMIN_ALTEX_NEXT ,SIALADMIN_ALTEX_XTRA '
+        asunto = asunto.split(',')
         if esquema == 'SEGUIDORES' or esquema == 'REPCIU_AYTO_ZAMORA':
             archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"            
         elif esquema == 'ZAM-SV-MORPHO2':
@@ -200,7 +218,12 @@ def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras):
         elif esquema in lista_mongo:
             archivo = f"{now.strftime('%Y%m%d')}-{esquema}.7z"
         else:
-            archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"
+                archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"
+
+
+        
+
+           
 
         ruta_archivo = os.path.join(ruta_folder, archivo)
 
@@ -208,7 +231,11 @@ def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras):
             sheet.cell(row=8, column=column_index_from_string(letras[idx])).value = 'X'
             # print(f"El backup del esquema {esquema} se realizo correctamente")
 
-            pass
+        for j, value in enumerate(asunto):
+            if esquema in asunto[j]: # poner otro condicional
+                if 'Si' in marcado_lista[j]:
+                    sheet.cell(row=8, column=column_index_from_string(letras[idx])).value = 'X'
+
     except FileNotFoundError as e:
         logging.error(f"Archivo de backup no encontrado: {e}")
     except Exception as e:
@@ -235,9 +262,9 @@ def leer_configuracion(ruta_archivo):
     esquemas = config['ESQUEMAS']['esquema'].split(',')
     letras = config['ESQUEMAS']['letras'].split(',')
     
-    return esquemas, letras
+    return esquemas, letras,config
 
-def actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo):
+def actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo, asunto):
     esquema_set = set(esquemas) 
     pos_final_num = column_index_from_string(letras[-1]) 
 
@@ -246,12 +273,15 @@ def actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo):
 
     exclusiones = {'SIAL_PRUEBA', 'LOBORH', 'FREXPORT', 'Mongo'}
 
+    inclusiones = asunto
+
     try:
         dirs_to_process = [d for d in os.listdir(ruta_base) 
                            if os.path.isdir(os.path.join(ruta_base, d)) and 
                            d not in esquema_set and 
                            d not in exclusiones]
         dirs_to_process.extend(subdir for subdir in lista_mongo if subdir not in esquema_set)
+        dirs_to_process.extend(inc for inc in inclusiones if inc not in esquema_set)
 
         for nombre_dir in dirs_to_process:
             nombres_nuevos.append(nombre_dir)
@@ -263,8 +293,8 @@ def actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo):
         
     return nombres_nuevos, letras_nuevas
 
-def actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo):
-    nombres_nuevos, letras_nuevas = actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo)
+def actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo, asunto):
+    nombres_nuevos, letras_nuevas = actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo, asunto)
 
     if nombres_nuevos or letras_nuevas:
         esquemas.extend(nombres_nuevos)
@@ -291,10 +321,10 @@ def actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo):
 # = Llamado a las funciones =
 # ===========================
 
-def main_function(sheet, now, esquemas, ruta_base, letras):
+def main_function(sheet, now, esquemas, ruta_base, letras, marcado_lista):
     insertar_fila(sheet, now)
 
-    comprobar_backup(now, esquemas, ruta_base, letras, sheet)
+    comprobar_backup(now, esquemas, ruta_base, letras, sheet, marcado_lista)
     
     # se añaden los nombres de las carpetas a la bitácora
     # esto deberia ir primero y despues checar los backups
@@ -303,29 +333,38 @@ def main_function(sheet, now, esquemas, ruta_base, letras):
             copiar_fila(7, column_index_from_string(letra) - 1, 7, column_index_from_string(letra), sheet)
             sheet.cell(row=7, column=column_index_from_string(letra)).value = esquemas[i]
 
-# =========================
+# ===========================
+# = Logica inical =
+# ===========================
 
 # ruta actual: /home/julianq@local.lobos.com.mx/Documents/Python/Bitacora_BD_v2
 ruta_actual = os.path.dirname(__file__)
 nombre_excel_base = "Bitacora_de_respaldos_BD"
 carpeta_excel = os.path.join(ruta_actual, nombre_excel_base)
 ruta_excel_base = os.path.join(ruta_actual, nombre_excel_base + ".xlsx")
-ruta_java = os.path.join(ruta_actual, "marcarAltex.jar")
+ruta_java = os.path.join(ruta_actual, 'prueba', 'marcarAltex.jar')
+
+# /python/Bitacora_BD_v2/prueba
+
 lista_mongo = {'SIAL_HDE','SialCFDI','CAMPOBDB'}
+file_path_conf = r'/python/Bitacora_BD_v2/configMarcado.conf'
+file_path_lobo = r'/python/Bitacora_BD_v2/Marcado_altex.lobo'
+
+asunto, _ = leer_conf(file_path_conf)
 
 ruta_base = '/mnt/175/'
 #ruta_base = r'\\192.0.0.175\respaldos'
 
 ruta_archivo_config = os.path.join(ruta_actual, "config.ini")
 
-esquemas, letras = leer_configuracion(ruta_archivo_config)
-esquemas, letras = actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo)
+esquemas, letras,_ = leer_configuracion(ruta_archivo_config)
+esquemas, letras = actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo, asunto)
 
 if len(letras) != len(esquemas):
     print('Las listas no tienen la misma cantidad de elementos')
 
 # now = datetime.now().date()
-now = datetime(2024, 6, 18).date() # Fecha de prueba
+now = datetime(2024, 7, 21).date() # Fecha de prueba
 fecha_modificacion = datetime(2024, 1, 1).date()
 
 os.makedirs(carpeta_excel, exist_ok=True)
@@ -337,30 +376,33 @@ sheet = workbook.active
 
 llenar_bitacora = False # Variable para controlar si se debe llenar la bitácora o no
 
-file_path_conf = r'/python/Bitacora_BD_v2/configMarcado.conf'
-file_path_lobo = r'/python/Bitacora_BD_v2/Marcado_altex.lobo'
-
-asunto, _ = leer_conf(file_path_conf)
-marcado_lista, fecha = leer_conf(file_path_lobo)
+# marcado_lista, fecha = leer_conf(file_path_lobo)
 # la fecha dada es de cuando debe de marcar
 
 try:
     exitoso = True  # Variable de control para verificar si el proceso se completó sin errores
-
+    config5 = configparser.ConfigParser()
+    config5.read(file_path_conf)
     if llenar_bitacora:
         while fecha_modificacion < now:
             ejecucionJava(ruta_actual, ruta_java)
-            main_function(sheet, fecha_modificacion, esquemas, ruta_base, letras)
-            fecha_modificacion += timedelta(days=1)
+            marcado_lista, _ = leer_conf(file_path_lobo)
+            main_function(sheet, fecha_modificacion, esquemas, ruta_base, letras, marcado_lista)
     else:
+        # darle formato a la fecha de modificacion 
+        fecha_mod = fecha_modificacion.strftime('%d/%m/%Y')
+        config5.set('Marcado', 'fecha', fecha_mod)
+        with open(file_path_conf, 'w') as configfile:
+            config5.write(configfile)
+
         ejecucionJava(ruta_actual, ruta_java)
-        main_function(sheet, now, esquemas, ruta_base, letras)
+        # marcado_lista, _ = leer_conf(file_path_lobo)
+        # main_function(sheet, now, esquemas, ruta_base, letras, marcado_lista)
 
 except Exception as e:
     logging.error(f"Ocurrió un error durante la ejecución: {e}")
     exitoso = False 
 
-if exitoso:
-    print("El programa ha finalizado exitosamente sin errores.")
+
 
 workbook.save(archivo_excel_year)
