@@ -25,12 +25,18 @@ def leer_conf(ruta_completa):
         if 'Marcado' not in config:
             raise configparser.NoSectionError('Marcado')
         
+        # si se pasa como parametro el path que apunta hacia el archivo .conf
+        # solo se retornara un parametro (asunto_lista)
         if 'asunto' in config['Marcado']:
             asunto = config.get('Marcado', 'asunto')
             asunto_lista = asunto.split(',')
             return asunto_lista, None  
 
+        # si se pasa como parametro el path que apunta hacia el archivo .lobo
+        # se retornaran dos valores, la lista de marcado y la fecha
         elif 'fecha' in config['Marcado'] and 'marcado' in config['Marcado']:
+            # no tiene mucho sentido tomar esta fecha porque en cada iteracion esta cambiando
+            # se debe de modificar la fecha del archivo .conf y no la del archivo .lobo
             fecha = config.get('Marcado', 'fecha')
             marcado = config.get('Marcado', 'marcado')
             marcado_lista = marcado.split(",")
@@ -44,7 +50,7 @@ def leer_conf(ruta_completa):
             
             with open(ruta_completa, 'w') as configfile:
                 config.write(configfile)
-            # se debe de modificar la fecha del archivo .conf y no la del archivo .lobo
+
             return marcado_lista, fecha_actual
         
     except configparser.NoSectionError as e:
@@ -74,6 +80,9 @@ def ejecucionJava(ruta_actual, ruta_java):
     try:
         f_alt, m_alt = cargarAltex(ruta_actual)
 
+        if f_alt is None or m_alt is None:
+            raise AttributeError("Un parametro de la configuracion Altex es nulo")
+
         execution_process = subprocess.Popen(['java', '-jar', ruta_java, f_alt] + m_alt, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         execution_output, execution_errors = execution_process.communicate()
@@ -97,8 +106,9 @@ def cargarAltex(ruta_actual):
     try:
         configAltex = configparser.ConfigParser()
         configAltex_ruta = os.path.join(ruta_actual, 'Marcado_altex.lobo')
+
         if not configAltex.read(configAltex_ruta):
-            raise FileNotFoundError(f"No se pudo encontrar o leer el archivo de configuración: {configAltex_ruta}")
+            raise FileNotFoundError(f"No se pudo leer el archivo de configuración: {configAltex_ruta}")
         
         fecha_altex = configAltex.get('Marcado', 'fecha')
         marcado_altex = configAltex.get('Marcado', 'marcado').split(",")
@@ -169,7 +179,7 @@ def crear_archivo_excel_si_no_existe(carpeta_excel, ruta_excel_base, now):
             logging.info(f"El archivo excel ya existe en la ruta: {archivo_excel_year}")
     except (FileNotFoundError, PermissionError) as e:
         logging.error(f"Error al crear o verificar el archivo Excel: {e}")
-        return None
+        exit(1)
     return archivo_excel_year
 
 # ================================
@@ -209,8 +219,9 @@ def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras, marcado_l
         lista_mongo = ['SIAL_HDE','SialCFDI','CAMPOBDB']
         # cambiar para leer directo
 
-        asunto = 'SIAL_ALTEX ,SIAL_ALTEX_FREX ,SIAL_ALTEX_ALXTRA ,SIAL_ALTEX_NEXT ,SIAL_ALTEX_XTRA ,SIALADMIN_ALTEX ,SIALADMIN_ALTEX_ALXTRA ,SIALADMIN_ALTEX_FREX ,SIALADMIN_ALTEX_NEXT ,SIALADMIN_ALTEX_XTRA '
-        asunto = asunto.split(',')
+        asunto_cadena = 'SIAL_ALTEX ,SIAL_ALTEX_FREX ,SIAL_ALTEX_ALXTRA ,SIAL_ALTEX_NEXT ,SIAL_ALTEX_XTRA ,SIALADMIN_ALTEX ,SIALADMIN_ALTEX_ALXTRA ,SIALADMIN_ALTEX_FREX ,SIALADMIN_ALTEX_NEXT ,SIALADMIN_ALTEX_XTRA '
+
+        asunto = asunto_cadena.split(',')
         if esquema == 'SEGUIDORES' or esquema == 'REPCIU_AYTO_ZAMORA':
             archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"            
         elif esquema == 'ZAM-SV-MORPHO2':
@@ -218,12 +229,7 @@ def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras, marcado_l
         elif esquema in lista_mongo:
             archivo = f"{now.strftime('%Y%m%d')}-{esquema}.7z"
         else:
-                archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"
-
-
-        
-
-           
+            archivo = f"{esquema}-respaldo-{now.strftime('%Y%m%d')}.tar.gz"
 
         ruta_archivo = os.path.join(ruta_folder, archivo)
 
@@ -232,9 +238,11 @@ def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras, marcado_l
             # print(f"El backup del esquema {esquema} se realizo correctamente")
 
         for j, value in enumerate(asunto):
-            if esquema in asunto[j]: # poner otro condicional
+            if esquema in asunto[j]: 
                 if 'Si' in marcado_lista[j]:
+                    # poner un break despues de marcar el esquema, no tiene sentido seguir iterando si para ese esquema ya se marco
                     sheet.cell(row=8, column=column_index_from_string(letras[idx])).value = 'X'
+                    break
 
     except FileNotFoundError as e:
         logging.error(f"Archivo de backup no encontrado: {e}")
@@ -244,16 +252,6 @@ def marcado_de_esquemas(ruta_folder, idx, esquema, now, sheet, letras, marcado_l
 # ===========================
 # = Manejo del archivo .ini =
 # ===========================
-
-def escribir_configuracion(ruta_archivo, esquemas, letras):
-    config = configparser.ConfigParser()
-    config['ESQUEMAS'] = {
-        'esquema': ','.join(esquemas),
-        'letras': ','.join(letras)
-    }
-    
-    with open(ruta_archivo, 'w') as configfile:
-        config.write(configfile)
 
 def leer_configuracion(ruta_archivo):
     config = configparser.ConfigParser()
@@ -344,7 +342,7 @@ carpeta_excel = os.path.join(ruta_actual, nombre_excel_base)
 ruta_excel_base = os.path.join(ruta_actual, nombre_excel_base + ".xlsx")
 ruta_java = os.path.join(ruta_actual, 'prueba', 'marcarAltex.jar')
 
-# /python/Bitacora_BD_v2/prueba
+# /python/Bitacora_BD_v2/prueba/marcarAltex.jar
 
 lista_mongo = {'SIAL_HDE','SialCFDI','CAMPOBDB'}
 file_path_conf = r'/python/Bitacora_BD_v2/configMarcado.conf'
