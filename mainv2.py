@@ -14,6 +14,7 @@ import subprocess
 # ===========================
 
 def leer_conf(ruta_completa):
+    # se deben cambiar los condicionales para entrar a cada archivo
     config = configparser.ConfigParser()
     
     try:
@@ -25,12 +26,12 @@ def leer_conf(ruta_completa):
         if 'Marcado' not in config:
             raise configparser.NoSectionError('Marcado')
         
-        # si se pasa como parametro el path que apunta hacia el archivo .conf
-        # solo se retornara un parametro (asunto_lista)
         if 'asunto' in config['Marcado']:
             asunto = config.get('Marcado', 'asunto')
             asunto_lista = asunto.split(',')
-            return asunto_lista, None  
+            fecha = config.get('Marcado', 'fecha')
+            fecha_dt = datetime.strptime(fecha, '%d/%m/%Y').date()
+            return asunto_lista, fecha_dt
 
         # si se pasa como parametro el path que apunta hacia el archivo .lobo
         # se retornaran dos valores, la lista de marcado y la fecha
@@ -260,7 +261,7 @@ def leer_configuracion(ruta_archivo):
     esquemas = config['ESQUEMAS']['esquema'].split(',')
     letras = config['ESQUEMAS']['letras'].split(',')
     
-    return esquemas, letras,config
+    return esquemas, letras, config
 
 def actualizar_esquemas_y_letras(ruta_base, esquemas, letras, lista_mongo, asunto):
     esquema_set = set(esquemas) 
@@ -348,10 +349,10 @@ lista_mongo = {'SIAL_HDE','SialCFDI','CAMPOBDB'}
 file_path_conf = r'/python/Bitacora_BD_v2/configMarcado.conf'
 file_path_lobo = r'/python/Bitacora_BD_v2/Marcado_altex.lobo'
 
-asunto, _ = leer_conf(file_path_conf)
+asunto, fecha = leer_conf(file_path_conf)
 
 ruta_base = '/mnt/175/'
-#ruta_base = r'\\192.0.0.175\respaldos'
+#ruta_base = r'\\192.0.0.175\respaldos' # Ruta para windows
 
 ruta_archivo_config = os.path.join(ruta_actual, "config.ini")
 
@@ -359,11 +360,11 @@ esquemas, letras,_ = leer_configuracion(ruta_archivo_config)
 esquemas, letras = actualizar_archivo_de_config(ruta_base, esquemas, letras, lista_mongo, asunto)
 
 if len(letras) != len(esquemas):
-    print('Las listas no tienen la misma cantidad de elementos')
+    raise ValueError("La cantidad de letras y esquemas no coincide")
 
-# now = datetime.now().date()
-now = datetime(2024, 7, 21).date() # Fecha de prueba
-fecha_modificacion = datetime(2024, 1, 1).date()
+now = datetime.now().date()
+fecha_modificacion = datetime.strptime(fecha, '%d/%m/%Y').date()  # Fecha que se aumenta en cada iteracion
+# now = datetime(2024, 7, 21).date() # Fecha de prueba
 
 os.makedirs(carpeta_excel, exist_ok=True)
 
@@ -377,37 +378,35 @@ llenar_bitacora = False # Variable para controlar si se debe llenar la bitácora
 # marcado_lista, fecha = leer_conf(file_path_lobo)
 # la fecha dada es de cuando debe de marcar
 
-try:
-    exitoso = True  # Variable de control para verificar si el proceso se completó sin errores
-    
-    config5 = configparser.ConfigParser()
-    config5.read(file_path_conf)
-    if llenar_bitacora:
-        while fecha_modificacion < now:
-            ejecucionJava(ruta_actual, ruta_java)
-            marcado_lista, _ = leer_conf(file_path_lobo)
-            main_function(sheet, fecha_modificacion, esquemas, ruta_base, letras, marcado_lista)
-            fecha_modificacion += timedelta(days=1)
-    else:
-        # darle formato a la fecha de modificacion 
-        fecha_mod = fecha_modificacion.strftime('%d/%m/%Y')
-        config5.set('Marcado', 'fecha', fecha_mod)
 
+config5 = configparser.ConfigParser()
+config5.read(file_path_conf)
 
-        # try:
-        #     with open(file_path_conf, 'w') as configfile:
-        #         config5.write(configfile)
-        # except Exception as e:
-        #     print(f"An error occurred: {e}")
-
+if llenar_bitacora:
+    while fecha_modificacion < now:
         ejecucionJava(ruta_actual, ruta_java)
         marcado_lista, _ = leer_conf(file_path_lobo)
-        main_function(sheet, now, esquemas, ruta_base, letras, marcado_lista)
+        main_function(sheet, fecha_modificacion, esquemas, ruta_base, letras, marcado_lista)
+        fecha_modificacion += timedelta(days=1)
+        
+        fecha_mod = fecha_modificacion.strftime('%d/%m/%Y')
+        config5.set('Marcado', 'fecha', fecha_mod)
+        with open(file_path_conf, 'w') as configfile:
+            config5.write(configfile)
+                
+else:
+    # darle formato a la fecha de modificacion 
+    # fecha_mod = fecha_modificacion.strftime('%d/%m/%Y')
+    # config5.set('Marcado', 'fecha', fecha_mod)
 
-except Exception as e:
-    logging.error(f"Ocurrió un error durante la ejecución: {e}")
-    exitoso = False 
+    # try:
+    #     with open(file_path_conf, 'w') as configfile:
+    #         config5.write(configfile)
+    # except Exception as e:
+    #     print(f"An error occurred: {e}")
 
-
+    ejecucionJava(ruta_actual, ruta_java)
+    marcado_lista, _ = leer_conf(file_path_lobo)
+    main_function(sheet, now, esquemas, ruta_base, letras, marcado_lista)
 
 workbook.save(archivo_excel_year)
