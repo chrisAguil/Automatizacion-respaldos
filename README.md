@@ -290,6 +290,24 @@ La variable `fecha` puede ser modificada para consultar el estado de los backups
 Este archivo no se modifica. Su propósito es proporcionar al script los valores de retorno del archivo .jar para que pueda realizar operaciones con ellos.  
 
 ## Funcionameinto del archivo JAVA
+El script `MarcarAltex` es una aplicación Java que se conecta a una cuenta de correo electrónico utilizando el protocolo IMAP para buscar mensajes recibidos en una fecha específica. Luego, verifica si los correos contienen ciertos asuntos y palabras clave, y marca en un archivo de configuración si los respaldos correspondientes se han realizado.  
+
+### Funcionamiento
+
+1. **Carga de configuración**:
+    - Se cargan las configuraciones necesarias desde el archivo `configMarcado.conf`.
+
+2. **Conexión al servidor de correo**:
+    - Utiliza las propiedades configuradas para conectarse al servidor de correo mediante IMAP.
+
+3. **Búsqueda de mensajes**:
+    - Busca los mensajes en la bandeja de entrada (`INBOX`) que fueron recibidos en una fecha específica.
+
+4. **Verificación del contenido de los mensajes**:
+    - Revisa si el asunto y el contenido de los mensajes contienen las palabras clave especificadas en la configuración.
+
+5. **Actualización de estado**:
+    - Si se encuentran las palabras clave correspondientes, se actualiza el estado en el archivo `Marcado_altex.lobo`.
 
 
 ## Ejemplos de uso
