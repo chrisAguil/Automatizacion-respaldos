@@ -24,7 +24,9 @@ Las rutas en el código están definidas principalmente al inicio del script y s
 
 ## Permisos Necesarios
 
-Para ejecutar correctamente este código, se necesitan permisos de lectura y escritura en los directorios y archivos especificados por las rutas definidas. Especialmente, asegúrate de tener permisos para modificar archivos de configuración (.conf, .lobo, .ini) y crear archivos Excel en la carpeta designada.
+Para ejecutar correctamente este código, se necesitan permisos de lectura y escritura en los directorios y archivos especificados por las rutas definidas. Especialmente, asegúrate de tener permisos para modificar archivos de configuración (.conf, .lobo, .ini) y crear archivos Excel en la carpeta designada.  
+
+## Funciones
 
 1. ### modificar_valcontenidoor_conf(ruta_archivo, clave, nuevo_valor)
 
