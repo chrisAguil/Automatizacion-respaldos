@@ -1,7 +1,21 @@
 # Automatización Bitácora
 
 ## Breve descripción 
-El script, realiza el llenado una bitácora de excel por una determinada fecha 
+El script realiza el llenado de una bitácora de la siguiente forma:
+
+1. **Carga de datos de configuración**: Se cargan los datos necesarios desde los archivos de configuración.
+
+2. **Actualización de datos**: Si es necesario, se actualizan estos datos. Es posible que se hayan añadido nuevos esquemas y se deba añadir letras correspondientes.
+
+3. **Ejecución del archivo Java**: Se ejecuta el archivo Java para procesar la información necesaria.
+
+4. **Inserción en el archivo Excel**: Se inserta una fila en el archivo Excel y se agrega la fecha correspondiente.
+
+5. **Comprobación de backups**: Se verifica la existencia de backups para la fecha en varios directorios mediante una función específica.
+
+6. **Marcado de casillas**: En caso de encontrar los backups, se marca la casilla correspondiente con una "X". Este proceso se repite para cada una de las empresas en la lista de esquemas y algunas más adicionales.
+
+  
 
 ## Funcionamiento de las Rutas y cómo Modificarlas
 
@@ -282,4 +296,17 @@ Este archivo no se modifica. Su propósito es proporcionar al script los valores
 Fragmentos de código o ejemplos que muestren cómo usar cada función en situaciones prácticas.
 
 ## Estructura del proyecto
-Una visión general de la estructura de directorios y archivos del proyecto, especialmente si hay varias partes o módulos involucrados.
+BITACORA_BD_V2/
+* src/
+  * mainv2.py              # Script principal para ejecutar el llenado de la bitácora
+  * config.ini             # Archivo de configuración principal
+  * configMarcado.conf     # Archivo de variables adicionales
+  * marcarAltex.jar        # Archivo Java que se ejecuta durante el proceso
+  * Marcado_altex.lobo     # Archivo de retorno del ejecutable jar
+    
+* Bitacora_de_respaldos_BD/
+  * Bitacora_APP.xlsx      # Archivo Excel base de la bitácora
+  * Bitacora_APP_2024.xlsx # Archivo Excel de la bitácora para el año 2024
+* logs/
+  * archivo_log.txt        # Archivo de logs para registrar errores y eventos
+* README.md                # Documentación del proyecto
