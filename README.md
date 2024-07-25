@@ -309,10 +309,6 @@ El script `MarcarAltex` es una aplicación Java que se conecta a una cuenta de c
 5. **Actualización de estado**:
     - Si se encuentran las palabras clave correspondientes, se actualiza el estado en el archivo `Marcado_altex.lobo`.
 
-
-## Ejemplos de uso
-Fragmentos de código o ejemplos que muestren cómo usar cada función en situaciones prácticas.
-
 ## Estructura del proyecto
 BITACORA_BD_V2/
 * src/
