@@ -181,15 +181,16 @@ Para ejecutar este script, es necesario tener Python 3 instalado.
 
 1. Para instalar Python 3:
     ```bash
-    sudo apt update
-    sudo apt install python3
+    sudo dnf update
+    sudo dnf install python3
     ```
 
 2. Para actualizar Python 3 a la última versión:
     ```bash
-    sudo apt update
-    sudo apt upgrade python3
+    sudo dnf update
+    sudo dnf upgrade python3
     ```
+**Si estás utilizando una distribución basada en Debian (como Ubuntu o Debian), reemplaza `dnf` por `apt`. Debería funcionar sin problemas.**
 
 **Para macOS:**
 
@@ -213,17 +214,17 @@ Para ejecutar este script, es necesario tener Python 3 instalado.
 
 **Para Linux y macOS:**
 
-1. Crear un nuevo entorno virtual en el directorio 'myenv':
+1. Crear un nuevo entorno virtual en el directorio 'venv':
     ```bash
-    python3 -m venv myenv
+    python3 -m venv venv
     ```
 
 2. Activar el entorno virtual:
     ```bash
-    source myenv/bin/activate
+    source venv/bin/activate
     ```
 
-   Ahora estás dentro del entorno virtual 'myenv'.
+   Ahora estás dentro del entorno virtual 'venv'.
 
 3. Para desactivar el entorno virtual, simplemente ejecuta:
     ```bash
@@ -234,12 +235,12 @@ Para ejecutar este script, es necesario tener Python 3 instalado.
 
 1. Crear un nuevo entorno virtual en el directorio 'myenv':
     ```bash
-    python -m venv myenv
+    python -m venv venv
     ```
 
 2. Activar el entorno virtual:
     ```bash
-    myenv\Scripts\activate
+    venv\Scripts\activate
     ```
 
    Ahora estás dentro del entorno virtual 'myenv'.
@@ -311,16 +312,15 @@ El script `MarcarAltex` es una aplicación Java que se conecta a una cuenta de c
 
 ## Estructura del proyecto
 BITACORA_BD_V2/
-* src/
+* /
   * mainv2.py              # Script principal para ejecutar el llenado de la bitácora
   * config.ini             # Archivo de configuración principal
   * configMarcado.conf     # Archivo de variables adicionales
   * marcarAltex.jar        # Archivo Java que se ejecuta durante el proceso
   * Marcado_altex.lobo     # Archivo de retorno del ejecutable jar
+  * README.md              # Documentación del proyecto
     
 * Bitacora_de_respaldos_BD/
   * Bitacora_APP.xlsx      # Archivo Excel base de la bitácora
-  * Bitacora_APP_2024.xlsx # Archivo Excel de la bitácora para el año 2024
-* logs/
-  * archivo_log.txt        # Archivo de logs para registrar errores y eventos
-* README.md                # Documentación del proyecto
+  * Bitacora_APP_2024.xlsx # Archivo Excel de la bitácora para el año 2024  
+
